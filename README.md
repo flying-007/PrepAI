@@ -135,29 +135,6 @@ prepai/
 
 ---
 
-## Deployment
-
-### Backend → [Render](https://render.com) (free tier)
-
-1. Push repo to GitHub
-2. New **Web Service** on Render → connect repo
-3. Root directory: `back_end`
-4. Build command: `pip install -r requirements.txt`
-5. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-6. Add environment variables:
-   - `GROQ_API_KEY` = your key
-   - `JWT_SECRET` = any long random string
-
-### Frontend → [Vercel](https://vercel.com) (free tier)
-
-1. New project on Vercel → connect repo
-2. Root directory: `front_end`
-3. Add environment variable:
-   - `VITE_API_URL` = your Render URL (e.g. `https://prepai.onrender.com`)
-4. Deploy
-
----
-
 ## Environment Variables
 
 | Variable | Where | Description |
@@ -165,15 +142,3 @@ prepai/
 | `GROQ_API_KEY` | `back_end/.env` | Free key from console.groq.com |
 | `JWT_SECRET` | `back_end/.env` | Any long random string for signing tokens |
 | `VITE_API_URL` | `front_end/.env` | Backend URL (default: `http://127.0.0.1:8000`) |
-
----
-
-## Screenshots
-
-> Add screenshots here after deployment
-
----
-
-## License
-
-MIT
