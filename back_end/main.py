@@ -1,7 +1,8 @@
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 from typing import Optional
 import sqlite3, os, json, httpx, secrets
 from datetime import datetime, timedelta
@@ -46,6 +47,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS sessions (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id         INTEGER NOT NULL,
+                title           TEXT,
                 job_description TEXT,
                 questions       TEXT,
                 created_at      TEXT,
@@ -66,6 +68,12 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_attempts_session ON attempts(session_id, question_index);
         """)
+        # migrate: add title column if it doesn't exist yet (safe on existing DBs)
+        try:
+            conn.execute("ALTER TABLE sessions ADD COLUMN title TEXT")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
         conn.commit()
     finally:
         conn.close()
@@ -170,11 +178,9 @@ def register(req: RegisterRequest):
 def login(req: LoginRequest):
     conn = get_db()
     try:
-        user = conn.execute(
-            "SELECT * FROM users WHERE email=?", (req.email,)).fetchone()
+        user = conn.execute("SELECT * FROM users WHERE email=?", (req.email,)).fetchone()
     finally:
         conn.close()
-    # verify outside DB context — bcrypt is slow by design
     if not user or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(401, "Invalid email or password")
     return {"token": create_token(user["id"], user["email"]), "name": user["name"], "email": user["email"]}
@@ -185,37 +191,53 @@ async def generate_questions(req: GenerateRequest, user=Depends(get_current_user
     if len(req.job_description.strip()) < 30:
         raise HTTPException(400, "Job description too short (min 30 chars)")
  
-    prompt = f"""You are an expert technical interviewer.
-Given this job description, generate exactly 7 interview questions.
+    # Call 1: generate questions
+    questions_prompt = f"""You are an expert technical interviewer.
+Generate exactly 7 interview questions for this job description.
 Mix: 2 behavioral, 3 technical, 2 situational.
-Return ONLY a JSON array of strings: ["Question 1", "Question 2", ...]
+Return ONLY a JSON array of strings, nothing else:
+["Question 1", "Question 2", "Question 3", "Question 4", "Question 5", "Question 6", "Question 7"]
+ 
+Job Description: {req.job_description}"""
+ 
+    # Call 2: generate title (runs concurrently)
+    title_prompt = f"""Given this job description, reply with ONLY a 2-3 word job title.
+Examples: SWE Intern, Full Stack Dev, Data Analyst, Product Manager, Backend Engineer
+Maximum 3 words. No quotes, no punctuation, just the words.
  
 Job Description: {req.job_description}"""
  
     try:
-        raw = await call_groq([{"role": "user", "content": prompt}])
-        questions = extract_json_array(raw)
-    except (ValueError, json.JSONDecodeError) as e:
-        raise HTTPException(502, f"Failed to parse questions from AI response: {e}")
+        import asyncio
+        questions_raw, title_raw = await asyncio.gather(
+            call_groq([{"role": "user", "content": questions_prompt}], max_tokens=800),
+            call_groq([{"role": "user", "content": title_prompt}], max_tokens=20),
+        )
+        questions = extract_json_array(questions_raw)
+        # strip any stray quotes/punctuation the LLM might add
+        title = title_raw.strip().strip('"\'').strip()
+        if not title or len(title) > 60:
+            title = "Interview Session"
+    except (ValueError, json.JSONDecodeError, KeyError) as e:
+        raise HTTPException(502, f"Failed to parse AI response: {e}")
  
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO sessions (user_id, job_description, questions, created_at) VALUES (?,?,?,?)",
-            (user["user_id"], req.job_description, json.dumps(questions), datetime.utcnow().isoformat()))
+            "INSERT INTO sessions (user_id, title, job_description, questions, created_at) VALUES (?,?,?,?,?)",
+            (user["user_id"], title, req.job_description, json.dumps(questions), datetime.utcnow().isoformat()))
         session_id = cur.lastrowid
         conn.commit()
     finally:
         conn.close()
  
-    return {"session_id": session_id, "questions": questions}
+    return {"session_id": session_id, "title": title, "questions": questions}
  
  
 @app.post("/evaluate-answer")
 async def evaluate_answer(req: EvaluateRequest, user=Depends(get_current_user)):
     conn = get_db()
     try:
-        # verify session belongs to user
         session = conn.execute(
             "SELECT id FROM sessions WHERE id=? AND user_id=?",
             (req.session_id, user["user_id"])).fetchone()
@@ -248,13 +270,17 @@ Evaluate and return ONLY this JSON object (no extra text):
   "strengths": "<one sentence on what was good>",
   "improvements": "<one concrete sentence on what to improve next>",
   "ideal_hint": "<one sentence hinting at an ideal answer>",
-  "improvement_from_last": "<if attempt > 1: one sentence comparing to previous attempt, else empty string>"
+  "improvement_from_last": "<if attempt > 1: one sentence comparing to previous attempt, else empty string>",
+  "resource": {{
+    "title": "<title of one highly relevant article, book chapter, or documentation page>",
+    "url": "<a real, publicly accessible URL for that resource>",
+    "reason": "<one sentence on why this resource helps with this specific question>"
+  }}
 }}"""
  
     try:
         raw = await call_groq([{"role": "user", "content": prompt}])
         feedback_obj = extract_json_object(raw)
-        # ensure required fields exist
         required = {"score", "verdict", "strengths", "improvements", "ideal_hint"}
         if not required.issubset(feedback_obj):
             raise ValueError(f"Missing fields: {required - feedback_obj.keys()}")
@@ -283,11 +309,18 @@ def get_sessions(user=Depends(get_current_user)):
     conn = get_db()
     try:
         rows = conn.execute(
-            "SELECT id, job_description, created_at FROM sessions WHERE user_id=? ORDER BY id DESC LIMIT 20",
+            "SELECT id, title, job_description, created_at FROM sessions WHERE user_id=? ORDER BY id DESC LIMIT 20",
             (user["user_id"],)).fetchall()
     finally:
         conn.close()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        if not d.get("title"):
+            words = (d.get("job_description") or "").split()
+            d["title"] = " ".join(words[:6]) + ("..." if len(words) > 6 else "")
+        result.append(d)
+    return result
  
  
 @app.get("/sessions/{session_id}/results")
@@ -295,14 +328,14 @@ def get_results(session_id: int, user=Depends(get_current_user)):
     conn = get_db()
     try:
         session = conn.execute(
-            "SELECT id, questions FROM sessions WHERE id=? AND user_id=?",
+            "SELECT id, title, questions FROM sessions WHERE id=? AND user_id=?",
             (session_id, user["user_id"])).fetchone()
         if not session:
             raise HTTPException(403, "Not your session")
  
         questions = json.loads(session["questions"])
+        title = session["title"]
  
-        # single query for all attempts — no N+1
         all_attempts = conn.execute(
             "SELECT question_index, answer, feedback, score, attempt_number, created_at "
             "FROM attempts WHERE session_id=? ORDER BY question_index, attempt_number",
@@ -310,7 +343,6 @@ def get_results(session_id: int, user=Depends(get_current_user)):
     finally:
         conn.close()
  
-    # group attempts by question index
     grouped: dict[int, list] = {i: [] for i in range(len(questions))}
     for a in all_attempts:
         grouped[a["question_index"]].append({
@@ -322,7 +354,7 @@ def get_results(session_id: int, user=Depends(get_current_user)):
         {"question_index": i, "question": q, "attempts": grouped[i]}
         for i, q in enumerate(questions)
     ]
-    return {"session_id": session_id, "questions": questions, "results": results}
+    return {"session_id": session_id, "title": title, "questions": questions, "results": results}
  
  
 @app.get("/health")
