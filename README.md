@@ -161,7 +161,4 @@ prepai/
 <img width="1836" height="940" alt="Screenshot from 2026-05-28 15-51-15" src="https://github.com/user-attachments/assets/16015017-8294-41ef-adeb-45434d5832ab" />
 <img width="1833" height="937" alt="Screenshot from 2026-05-28 15-51-44" src="https://github.com/user-attachments/assets/74344d28-4575-4e00-8d5d-6f17afa29691" />
 
-
-
-
 ---
