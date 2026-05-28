@@ -142,3 +142,26 @@ prepai/
 | `GROQ_API_KEY` | `back_end/.env` | Free key from console.groq.com |
 | `JWT_SECRET` | `back_end/.env` | Any long random string for signing tokens |
 | `VITE_API_URL` | `front_end/.env` | Backend URL (default: `http://127.0.0.1:8000`) |
+
+## Deployment
+
+### Backend → https://ps1-kvgai-tech-full-stack.onrender.com
+
+### Frontend → https://ps-1-kvgai-tech-full-stack.vercel.app/
+
+---
+
+## Screenshots
+<img width="1830" height="938" alt="Screenshot from 2026-05-28 15-44-45" src="https://github.com/user-attachments/assets/1e52ba51-7b1b-4a0a-b2ca-75e5e9fabcbb" />
+<img width="1836" height="937" alt="Screenshot from 2026-05-28 15-46-02" src="https://github.com/user-attachments/assets/a8e540f9-f643-4782-b5ce-fda1ecac845a" />
+<img width="1831" height="939" alt="Screenshot from 2026-05-28 15-47-22" src="https://github.com/user-attachments/assets/ee8a95b8-c13e-49f9-91d1-dec55d80f0fb" />
+<img width="1836" height="939" alt="Screenshot from 2026-05-28 15-48-11" src="https://github.com/user-attachments/assets/68d91240-7bdb-42d4-ab0a-209177042f93" />
+<img width="1833" height="937" alt="Screenshot from 2026-05-28 15-50-18" src="https://github.com/user-attachments/assets/805e4cf7-cc41-4b46-bee6-23dbb1796045" />
+<img width="1834" height="936" alt="Screenshot from 2026-05-28 15-50-45" src="https://github.com/user-attachments/assets/8f14ceba-6c78-4af3-9b2c-d174311afef9" />
+<img width="1836" height="940" alt="Screenshot from 2026-05-28 15-51-15" src="https://github.com/user-attachments/assets/16015017-8294-41ef-adeb-45434d5832ab" />
+<img width="1833" height="937" alt="Screenshot from 2026-05-28 15-51-44" src="https://github.com/user-attachments/assets/74344d28-4575-4e00-8d5d-6f17afa29691" />
+
+
+
+
+---
