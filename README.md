@@ -142,13 +142,13 @@ prepai/
 | `GROQ_API_KEY` | `back_end/.env` | Free key from console.groq.com |
 | `JWT_SECRET` | `back_end/.env` | Any long random string for signing tokens |
 | `VITE_API_URL` | `front_end/.env` | Backend URL (default: `http://127.0.0.1:8000`) |
-
+<!--
 ## Deployment
 
 ### Backend → https://ps1-kvgai-tech-full-stack.onrender.com
 
 ### Frontend → https://ps-1-kvgai-tech-full-stack.vercel.app/
-
+-->
 ---
 
 ## Screenshots
