@@ -50,7 +50,7 @@
 
 ```bash
 git clone https://github.com/your-username/prepai.git
-cd prepai
+cd PrepAI
 ```
 
 ### 2. Backend
